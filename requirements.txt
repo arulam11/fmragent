@@ -1,0 +1,6 @@
+google-cloud-aiplatform
+google-cloud-bigquery
+google-adk
+Jinja2
+python-dotenv
+Flask
