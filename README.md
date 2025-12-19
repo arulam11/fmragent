@@ -1,14 +1,14 @@
-# FMR Agent: Real Estate Data Analyzer
+# CRE Agent: Commercial Real Estate Loan Analyzer
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-An AI agent that provides insights into a real estate portfolio by answering natural language questions about Fair Market Rent (FMR) and property data.
+An AI agent that assists with commercial real estate loan analysis by providing data-driven insights on market value, rental income potential, and flood risk.
 
 ## Description
 
-The FMR (Fair Market Rent) Agent is an intelligent system designed to streamline the analysis of real estate data. It is built using the Google Agent Development Kit (ADK) and leverages Google Cloud's Vertex AI and BigQuery.
+The CRE (Commercial Real Estate) Agent is an intelligent system designed to streamline due diligence for loan analysis. It is built using the Google Agent Development Kit (ADK) and leverages Google Cloud's Vertex AI and BigQuery.
 
-This project exposes the agent through a simple Flask API, allowing users to ask complex questions about property data—such as "what is the average 2-bedroom fair market rent in Los Angeles?" or "which 5 zip codes in California have the highest 1-bedroom rent?"—and receive direct, data-driven answers.
+This project exposes the agent through a simple Flask API. It allows users to ask complex questions—such as "What is the median listing price for properties in zip code 08807?" or "Generate a loan analysis memo for a property in Los Angeles, CA"—and receive direct, data-driven answers synthesized from multiple datasets.
 
 ## Table of Contents
 
@@ -32,27 +32,51 @@ The system is composed of a few key components:
 
 ## Data Model & Prompting
 
-The agent's effectiveness comes from its understanding of the underlying data structure. The instructions for the `SqlGeneratorAgent` include the schema of the BigQuery table it is expected to query. This allows the LLM to translate a natural language question into a valid and accurate SQL query.
+The agent's effectiveness comes from its understanding of the underlying data structures it can query. The prompt template (`CAM_table_structure.j2`) provides the LLM with the schemas and purposes of three distinct BigQuery tables, enabling it to translate a natural language question into a valid SQL query.
 
 ### BigQuery Table Schema
 
-The agent is configured to work with a table from the `realtorzip` dataset with the following schema:
+The agent is configured to work with the following tables within the `realtorzip` dataset:
+
+#### 1. Realtor Zip Data (`realtorzip`)
+Contains individual real estate property listings. Used for questions about listing prices, property attributes (beds, baths, size), and market trends.
 
 | Column Name              | Data Type | Description                                                                 |
 | ------------------------ | --------- | --------------------------------------------------------------------------- |
+| `status`                 | STRING    | Listing status (e.g., 'for_sale'). Must be filtered for current market data. |
+| `price`                  | BIGNUMERIC| The listing price of the property.                                          |
+| `bed`                    | INTEGER   | Number of bedrooms.                                                         |
+| `bath`                   | INTEGER   | Number of bathrooms.                                                        |
+| `house_size`             | FLOAT     | Size in square feet.                                                        |
 | `zip_code`               | STRING    | The 5-digit postal zip code.                                                |
 | `city`                   | STRING    | The city corresponding to the zip code.                                     |
 | `state`                  | STRING    | The 2-letter state abbreviation (e.g., "CA", "NY").                         |
-| `county_name`            | STRING    | The name of the county.                                                     |
-| `fmr_0_br`               | INTEGER   | The Fair Market Rent for a 0-bedroom (studio) unit.                         |
-| `fmr_1_br`               | INTEGER   | The Fair Market Rent for a 1-bedroom unit.                                  |
-| `fmr_2_br`               | INTEGER   | The Fair Market Rent for a 2-bedroom unit.                                  |
-| `fmr_3_br`               | INTEGER   | The Fair Market Rent for a 3-bedroom unit.                                  |
-| `fmr_4_br`               | INTEGER   | The Fair Market Rent for a 4-bedroom unit.                                  |
+
+#### 2. FY2026 Small Area Fair Market Rent (`FY2026`)
+Contains Fiscal Year 2026 SAFMR data. Critical for assessing a property's rental income potential.
+
+| Column Name              | Data Type | Description                                                                 |
+| ------------------------ | --------- | --------------------------------------------------------------------------- |
+| `zip_code`               | STRING    | 5-digit zip code.                                                           |
+| `safmr_0br`              | INTEGER   | Fair Market Rent for a 0-bedroom/studio unit.                               |
+| `safmr_1br`              | INTEGER   | Fair Market Rent for a 1-bedroom unit.                                      |
+| `safmr_2br`              | INTEGER   | Fair Market Rent for a 2-bedroom unit.                                      |
+| `safmr_3br`              | INTEGER   | Fair Market Rent for a 3-bedroom unit.                                      |
+| `safmr_4br`              | INTEGER   | Fair Market Rent for a 4-bedroom unit.                                      |
+
+#### 3. Flood Risk Data (`floodlossbystate`)
+Contains flood risk statistics aggregated at the **state level**. Used for questions related to flood risk and potential financial loss.
+
+| Column Name                   | Data Type | Description                                                                 |
+| ----------------------------- | --------- | --------------------------------------------------------------------------- |
+| `state`                       | STRING    | 2-letter state abbreviation.                                                |
+| `fema_risk_rating`            | STRING    | Categorical risk rating (e.g., 'Low', 'Medium', 'High').                    |
+| `percent_properties_at_risk`  | FLOAT     | The percentage of properties in the state with significant flood risk.      |
+| `average_annual_loss_usd`     | FLOAT     | The estimated average financial loss per property per year due to flooding. |
 
 ### Agent Output
 
-As defined in `fmr_agent/agent.py`, the final output is structured in a user-friendly markdown format. It presents the generated SQL query for transparency, followed by a natural language interpretation of the results returned from BigQuery.
+The agent provides a natural language answer based on the query results. For more complex requests (e.g., asking for a "memo" or "report"), it can generate a structured Markdown document that synthesizes findings from all three data sources into an analysis memo covering market value, rental income potential, and flood risk.
 
 ## Technologies Used
 
@@ -126,5 +150,5 @@ Once the server is running, you can send requests to the `/invoke_agent` endpoin
 curl -X POST http://127.0.0.1:8080/invoke_agent \
 -H "Content-Type: application/json" \
 -d '{
-  "question": "What is the average 2 bedroom FMR in the state of Florida?"
+  "question": "Generate a commercial real estate loan analysis memo for a property in zip code 90210."
 }'
